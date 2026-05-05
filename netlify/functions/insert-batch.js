@@ -1,4 +1,4 @@
-import supabase from './utils/supabaseClient.js'
+import { supabase } from './utils/supabaseClient.js'
 
 const BATCH_SIZE = 1000
 

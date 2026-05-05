@@ -1,7 +1,7 @@
 import { parseCsvStream } from './utils/parseCsv.js'
 import { normalizeRow } from './utils/normalize.js'
 import { processBatches } from './insert-batch.js'
-import supabase from './utils/supabaseClient.js'
+import { supabase } from './utils/supabaseClient.js'
 
 export const handler = async (event) => {
     try {

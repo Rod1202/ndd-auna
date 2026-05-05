@@ -7,7 +7,7 @@ if (!supabaseUrl || !serviceRoleKey) {
     throw new Error('Missing SUPABASE_URL/VITE_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY for Netlify Functions')
 }
 
-const supabase = createClient(
+export const supabase = createClient(
     supabaseUrl,
     serviceRoleKey
 )
