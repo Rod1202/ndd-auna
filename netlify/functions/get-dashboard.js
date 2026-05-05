@@ -85,6 +85,95 @@ const toSortedDistribution = (map, limit = 8) => {
         }))
 }
 
+const percentDistribution = (items, valueKey = 'total_paginas', limit = 8) => {
+    const total = items.reduce((sum, item) => sum + sumNumber(item[valueKey]), 0)
+
+    return items
+        .sort((a, b) => sumNumber(b[valueKey]) - sumNumber(a[valueKey]))
+        .slice(0, limit)
+        .map((item) => ({
+            label: item.label,
+            value: sumNumber(item[valueKey]),
+            percent: total ? Number(((sumNumber(item[valueKey]) / total) * 100).toFixed(2)) : 0
+        }))
+}
+
+const loadDashboardCache = async () => {
+    const [
+        kpis,
+        tendencia,
+        distributions
+    ] = await Promise.all([
+        safeQuery(supabase.from('dashboard_kpis').select('*').eq('id', 1).maybeSingle(), null),
+        safeQuery(supabase.from('dashboard_tendencia').select('*').order('dia', { ascending: true })),
+        safeQuery(supabase.from('dashboard_distribution').select('*'))
+    ])
+
+    if (!kpis.data || kpis.warning || tendencia.warning || distributions.warning) {
+        return null
+    }
+
+    const byCategory = (category) => distributions.data.filter((item) => item.category === category)
+    const kpi = kpis.data
+    const totalRegistros = sumNumber(kpi.total_registros)
+    const sinInventario = sumNumber(kpi.sin_inventario)
+
+    return {
+        usuarios: byCategory('usuario')
+            .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
+            .slice(0, 10)
+            .map((item) => ({
+                logon_nombre: item.label,
+                total_paginas: item.total_paginas,
+                total_costo: item.total_costo
+            })),
+        impresoras: byCategory('impresora')
+            .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
+            .slice(0, 10)
+            .map((item) => ({
+                impresora_serie: item.label,
+                total_paginas: item.total_paginas
+            })),
+        tendencia: tendencia.data,
+        colorMono: [{
+            total_color: kpi.total_color,
+            total_mono: kpi.total_mono
+        }],
+        trabajos: byCategory('trabajo')
+            .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
+            .slice(0, 10)
+            .map((item) => ({
+                nombre_trabajo: item.label,
+                frecuencia: item.total_count,
+                total_paginas: item.total_paginas,
+                impresoras: item.extra?.impresoras || 0,
+                usuarios: item.extra?.usuarios || 0
+            })),
+        seriesNoEncontradas: byCategory('serie_no_encontrada')
+            .map((item) => ({ impresora_serie: item.label })),
+        calidadInventario: {
+            total_registros: totalRegistros,
+            sin_inventario: sinInventario,
+            porcentaje_sin_inventario: totalRegistros
+                ? Number(((sinInventario / totalRegistros) * 100).toFixed(2))
+                : 0
+        },
+        unidadNegocioDistribucion: percentDistribution(byCategory('unidad_negocio')),
+        topSedes: percentDistribution(byCategory('sede'), 'total_paginas', 5),
+        topAreas: percentDistribution(byCategory('area'), 'total_paginas', 5),
+        papelDistribucion: percentDistribution(byCategory('papel')),
+        tipoTrabajoDistribucion: percentDistribution(byCategory('tipo_trabajo'), 'total_paginas', 6),
+        duplexSimplex: {
+            duplex: kpi.duplex_count,
+            simplex: kpi.simplex_count,
+            total: sumNumber(kpi.duplex_count) + sumNumber(kpi.simplex_count),
+            duplexPercent: totalRegistros ? Number(((sumNumber(kpi.duplex_count) / totalRegistros) * 100).toFixed(2)) : 0,
+            simplexPercent: totalRegistros ? Number(((sumNumber(kpi.simplex_count) / totalRegistros) * 100).toFixed(2)) : 0
+        },
+        warnings: []
+    }
+}
+
 const buildDashboardAnalytics = (logs, inventario) => {
     const inventoryBySerie = new Map(
         inventario.map((item) => [item.serie?.trim().toUpperCase(), item])
@@ -160,6 +249,12 @@ const buildDashboardAnalytics = (logs, inventario) => {
 
 export const handler = async () => {
     try {
+        const cachedDashboard = await loadDashboardCache()
+
+        if (cachedDashboard) {
+            return json(200, cachedDashboard)
+        }
+
         const [
             usuarios,
             impresoras,
