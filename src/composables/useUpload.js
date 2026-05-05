@@ -22,16 +22,23 @@ export const useUpload = () => {
             loading.value = true
             status.value = 'Subiendo archivo...'
 
-            const { uploadId, signedUpload, signedChunks, chunkSizeBytes } = await createUploadJob(file)
+            const { uploadId, signedUpload, totalChunks, chunkSizeBytes } = await createUploadJob(file)
 
             let filePath = null
             let chunkPaths = null
 
-            if (Array.isArray(signedChunks) && signedChunks.length > 1) {
-                status.value = `Subiendo archivo en ${signedChunks.length} partes...`
-                chunkPaths = await uploadFileChunksToStorage(file, signedChunks, chunkSizeBytes, ({ uploadedChunks, totalChunks, percent }) => {
-                    progress.value = percent
-                    status.value = `Subiendo parte ${uploadedChunks} de ${totalChunks}...`
+            if (Number(totalChunks || 1) > 1) {
+                status.value = `Subiendo archivo en ${totalChunks} partes...`
+                chunkPaths = await uploadFileChunksToStorage({
+                    file,
+                    uploadId,
+                    signedUpload,
+                    totalChunks,
+                    chunkSizeBytes,
+                    onProgress: ({ uploadedChunks, totalChunks, percent }) => {
+                        progress.value = percent
+                        status.value = `Subiendo parte ${uploadedChunks} de ${totalChunks}...`
+                    }
                 })
             } else {
                 filePath = await uploadFileToStorage(file, signedUpload)

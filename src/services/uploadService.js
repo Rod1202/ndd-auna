@@ -23,11 +23,39 @@ export const uploadFileToStorage = async (file, signedUpload) => {
     return signedUpload.path
 }
 
-export const uploadFileChunksToStorage = async (file, signedChunks, chunkSizeBytes, onProgress) => {
+export const createChunkUpload = async ({ uploadId, filename, chunkIndex }) => {
+    const res = await fetch('/.netlify/functions/upload-chunk-init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uploadId, filename, chunkIndex })
+    })
+
+    if (!res.ok) {
+        throw new Error(await readErrorMessage(res, `No se pudo preparar la parte ${chunkIndex + 1}`))
+    }
+
+    return res.json()
+}
+
+export const uploadFileChunksToStorage = async ({
+    file,
+    uploadId,
+    signedUpload,
+    totalChunks,
+    chunkSizeBytes,
+    onProgress
+}) => {
     const uploadedPaths = []
 
-    for (let index = 0; index < signedChunks.length; index++) {
-        const signedChunk = signedChunks[index]
+    for (let index = 0; index < totalChunks; index++) {
+        const chunkUpload = index === 0
+            ? { signedUpload }
+            : await createChunkUpload({
+                uploadId,
+                filename: file.name,
+                chunkIndex: index
+            })
+        const signedChunk = chunkUpload.signedUpload
         const start = index * chunkSizeBytes
         const end = Math.min(start + chunkSizeBytes, file.size)
         const chunk = file.slice(start, end, file.type || 'text/csv')
@@ -38,8 +66,8 @@ export const uploadFileChunksToStorage = async (file, signedChunks, chunkSizeByt
         if (typeof onProgress === 'function') {
             onProgress({
                 uploadedChunks: index + 1,
-                totalChunks: signedChunks.length,
-                percent: Math.round(((index + 1) / signedChunks.length) * 45)
+                totalChunks,
+                percent: Math.round(((index + 1) / totalChunks) * 45)
             })
         }
     }

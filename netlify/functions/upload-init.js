@@ -80,31 +80,21 @@ export const handler = async (event) => {
         if (error) throw error
 
         const totalChunks = Math.max(1, Math.ceil(Number(size || 0) / chunkSizeBytes))
-        const chunkPaths = Array.from({ length: totalChunks }, (_, index) => {
-            const partNumber = String(index + 1).padStart(5, '0')
-            return `uploads/${data.id}/part-${partNumber}-${safeFileName(filename)}`
-        })
+        const filePath = `uploads/${data.id}/part-00001-${safeFileName(filename)}`
+        const { data: signedUpload, error: signedError } = await supabase.storage
+            .from('csv-files')
+            .createSignedUploadUrl(filePath)
 
-        const signedChunks = []
-
-        for (const path of chunkPaths) {
-            const { data: signedUpload, error: signedError } = await supabase.storage
-                .from('csv-files')
-                .createSignedUploadUrl(path)
-
-            if (signedError) throw signedError
-
-            signedChunks.push(signedUpload)
-        }
+        if (signedError) throw signedError
 
         return json(200, {
             uploadId: data.id,
+            safeFilename: safeFileName(filename),
             chunkSizeBytes,
             chunkSizeMb,
-            signedChunks,
             totalChunks,
-            signedUpload: signedChunks[0],
-            filePath: chunkPaths[0]
+            signedUpload,
+            filePath
         })
     } catch (error) {
         return json(500, { error: error.message })
