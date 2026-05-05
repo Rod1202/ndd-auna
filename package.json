@@ -1,0 +1,30 @@
+{
+  "name": "ndd-dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "dev:vite": "vite",
+    "build": "vite build && node scripts/write-redirects.mjs",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "@supabase/supabase-js": "^2.105.3",
+    "chart.js": "^4.5.1",
+    "csv-parser": "^3.2.0",
+    "papaparse": "^5.5.3",
+    "pinia": "^3.0.4",
+    "sass": "^1.99.0",
+    "vue": "^3.5.32",
+    "vue-chartjs": "^5.3.3",
+    "vue-router": "^5.0.6",
+    "vuetify": "^4.0.6"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "vite": "^8.0.10",
+    "vite-plugin-vuetify": "^2.1.3"
+  }
+}
