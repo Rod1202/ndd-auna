@@ -5,10 +5,38 @@ const supabase = createClient(
     import.meta.env.VITE_SUPABASE_ANON_KEY
 )
 
+const delay = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms)
+})
+
+const withRetry = async (operation, retries = 4) => {
+    let lastError = null
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await operation(attempt)
+        } catch (error) {
+            lastError = error
+
+            if (attempt === retries) break
+
+            await delay(800 * (attempt + 1))
+        }
+    }
+
+    throw lastError
+}
+
 export const uploadFileToStorage = async (file, signedUpload) => {
-    const { error } = await supabase.storage
-        .from('csv-files')
-        .uploadToSignedUrl(signedUpload.path, signedUpload.token, file)
+    const { error } = await withRetry(async () => {
+        const result = await supabase.storage
+            .from('csv-files')
+            .uploadToSignedUrl(signedUpload.path, signedUpload.token, file)
+
+        if (result.error) throw result.error
+
+        return result
+    })
 
     if (error) {
         const message = String(error.message || '')
@@ -24,17 +52,19 @@ export const uploadFileToStorage = async (file, signedUpload) => {
 }
 
 export const createChunkUpload = async ({ uploadId, filename, chunkIndex }) => {
-    const res = await fetch('/.netlify/functions/upload-chunk-init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uploadId, filename, chunkIndex })
+    return await withRetry(async () => {
+        const res = await fetch('/.netlify/functions/upload-chunk-init', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uploadId, filename, chunkIndex })
+        })
+
+        if (!res.ok) {
+            throw new Error(await readErrorMessage(res, `No se pudo preparar la parte ${chunkIndex + 1}`))
+        }
+
+        return res.json()
     })
-
-    if (!res.ok) {
-        throw new Error(await readErrorMessage(res, `No se pudo preparar la parte ${chunkIndex + 1}`))
-    }
-
-    return res.json()
 }
 
 export const uploadFileChunksToStorage = async ({
