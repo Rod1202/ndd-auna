@@ -46,6 +46,7 @@ export const uploadFileChunksToStorage = async ({
     onProgress
 }) => {
     const uploadedPaths = []
+    const maxChunkSize = Number(chunkSizeBytes || 2 * 1024 * 1024)
 
     for (let index = 0; index < totalChunks; index++) {
         const chunkUpload = index === 0
@@ -56,9 +57,13 @@ export const uploadFileChunksToStorage = async ({
                 chunkIndex: index
             })
         const signedChunk = chunkUpload.signedUpload
-        const start = index * chunkSizeBytes
-        const end = Math.min(start + chunkSizeBytes, file.size)
+        const start = index * maxChunkSize
+        const end = Math.min(start + maxChunkSize, file.size)
         const chunk = file.slice(start, end, file.type || 'text/csv')
+
+        if (chunk.size > maxChunkSize) {
+            throw new Error(`La parte ${index + 1} supera el limite configurado de carga.`)
+        }
 
         const path = await uploadFileToStorage(chunk, signedChunk)
         uploadedPaths.push(path)

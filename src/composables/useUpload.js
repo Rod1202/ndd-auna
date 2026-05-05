@@ -22,12 +22,22 @@ export const useUpload = () => {
             loading.value = true
             status.value = 'Subiendo archivo...'
 
-            const { uploadId, signedUpload, totalChunks, chunkSizeBytes } = await createUploadJob(file)
+            const {
+                uploadId,
+                signedUpload,
+                totalChunks: serverTotalChunks,
+                chunkSizeBytes: serverChunkSizeBytes
+            } = await createUploadJob(file)
+            const chunkSizeBytes = Number(serverChunkSizeBytes || 2 * 1024 * 1024)
+            const totalChunks = Math.max(
+                Number(serverTotalChunks || 1),
+                Math.ceil(file.size / chunkSizeBytes)
+            )
 
             let filePath = null
             let chunkPaths = null
 
-            if (Number(totalChunks || 1) > 1) {
+            if (totalChunks > 1 || file.size > chunkSizeBytes) {
                 status.value = `Subiendo archivo en ${totalChunks} partes...`
                 chunkPaths = await uploadFileChunksToStorage({
                     file,
