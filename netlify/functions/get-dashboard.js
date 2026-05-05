@@ -11,6 +11,22 @@ const assertQuery = (result) => {
     return result.data || []
 }
 
+const safeQuery = async (query, fallback = []) => {
+    const result = await query
+
+    if (result.error) {
+        return {
+            data: fallback,
+            warning: result.error.message
+        }
+    }
+
+    return {
+        data: result.data || fallback,
+        warning: null
+    }
+}
+
 const buildInventoryQuality = (logs, inventario) => {
     const inventorySeries = new Set(
         inventario
@@ -152,11 +168,11 @@ export const handler = async () => {
             logsSeries,
             inventario
         ] = await Promise.all([
-            supabase.from('v_top_usuarios').select('*').limit(10),
-            supabase.from('v_top_impresoras').select('*').limit(10),
-            supabase.from('v_tendencia').select('*'),
-            supabase.from('v_color_mono').select('*'),
-            supabase
+            safeQuery(supabase.from('v_top_usuarios').select('*').limit(10)),
+            safeQuery(supabase.from('v_top_impresoras').select('*').limit(10)),
+            safeQuery(supabase.from('v_tendencia').select('*')),
+            safeQuery(supabase.from('v_color_mono').select('*')),
+            safeQuery(supabase
                 .from('print_logs')
                 .select(`
                     logon_nombre,
@@ -167,24 +183,32 @@ export const handler = async () => {
                     tipo_trabajo,
                     nombre_trabajo
                 `)
-                .limit(10000),
-            supabase.from('inventario').select('serie, unidad_negocio, sede, area')
+                .limit(5000)),
+            safeQuery(supabase.from('inventario').select('serie, unidad_negocio, sede, area'))
         ])
 
         const inventoryQuality = buildInventoryQuality(
-            assertQuery(logsSeries),
-            assertQuery(inventario)
+            logsSeries.data,
+            inventario.data
         )
         const dashboardAnalytics = buildDashboardAnalytics(
-            assertQuery(logsSeries),
-            assertQuery(inventario)
+            logsSeries.data,
+            inventario.data
         )
+        const warnings = [
+            usuarios.warning,
+            impresoras.warning,
+            tendencia.warning,
+            colorMono.warning,
+            logsSeries.warning,
+            inventario.warning
+        ].filter(Boolean)
 
         return json(200, {
-            usuarios: assertQuery(usuarios),
-            impresoras: assertQuery(impresoras),
-            tendencia: assertQuery(tendencia),
-            colorMono: assertQuery(colorMono),
+            usuarios: usuarios.data,
+            impresoras: impresoras.data,
+            tendencia: tendencia.data,
+            colorMono: colorMono.data,
             trabajos: dashboardAnalytics.topTrabajos,
             seriesNoEncontradas: inventoryQuality.seriesNoEncontradas,
             calidadInventario: inventoryQuality.calidadInventario,
@@ -193,7 +217,8 @@ export const handler = async () => {
             topAreas: dashboardAnalytics.topAreas,
             papelDistribucion: dashboardAnalytics.papelDistribucion,
             tipoTrabajoDistribucion: dashboardAnalytics.tipoTrabajoDistribucion,
-            duplexSimplex: dashboardAnalytics.duplexSimplex
+            duplexSimplex: dashboardAnalytics.duplexSimplex,
+            warnings
         })
     } catch (error) {
         return json(500, { error: error.message })

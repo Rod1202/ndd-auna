@@ -22,6 +22,15 @@
       {{ error }}
     </v-alert>
 
+    <v-alert
+      v-else-if="warnings.length"
+      type="warning"
+      variant="tonal"
+      class="mb-6"
+    >
+      Algunas consultas tardaron demasiado en Supabase. Se muestran los datos disponibles.
+    </v-alert>
+
     <div class="dashboard-grid">
       <div class="kpi-grid">
         <KpiCard
@@ -198,6 +207,7 @@ const {
   papelDistribucion,
   tipoTrabajoDistribucion,
   duplexSimplex,
+  warnings,
   loading,
   error
 } = storeToRefs(store)
