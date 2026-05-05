@@ -160,14 +160,14 @@ export const handler = async (event) => {
                 impresoras: item.impresoras.size,
                 usuarios: item.usuarios.size
             }))
-            .sort((a, b) => b.paginas_total - a.paginas_total)
+            .sort((a, b) => b.costo_total - a.costo_total)
 
         const impresoras = [...impresorasMap.values()]
             .map((item) => ({
                 ...item,
                 usuarios: item.usuarios.size
             }))
-            .sort((a, b) => b.paginas_total - a.paginas_total)
+            .sort((a, b) => b.costo_total - a.costo_total)
 
         const usuarios = [...usuariosMap.values()]
             .map((item) => ({

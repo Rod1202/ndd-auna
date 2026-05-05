@@ -91,7 +91,8 @@ const loadData = async () => {
 
   try {
     const data = await getEnrichedPrints()
-    printers.value = data.impresoras || []
+    printers.value = [...(data.impresoras || [])]
+      .sort((a, b) => Number(b.costo_total || 0) - Number(a.costo_total || 0))
   } catch (err) {
     console.error(err)
     error.value = err.message || 'No se pudo cargar impresoras'

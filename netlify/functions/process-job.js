@@ -1,6 +1,7 @@
 import { decodeCsv, parseCsvStream, parseCsvText } from './utils/parseCsv.js'
 import { normalizeRow } from './utils/normalize.js'
 import { processBatches } from './insert-batch.js'
+import { updateDashboardCache } from './utils/dashboardCache.js'
 import { supabase } from './utils/supabaseClient.js'
 
 const json = (statusCode, body) => ({
@@ -61,6 +62,9 @@ export const handler = async (event) => {
 
             if (bufferRows.length >= 1000) {
                 await processBatches(bufferRows)
+                await updateDashboardCache(bufferRows).catch((error) => {
+                    console.warn('No se pudo actualizar cache dashboard:', error.message)
+                })
                 bufferRows = []
 
                 await supabase
@@ -102,6 +106,9 @@ export const handler = async (event) => {
 
             if (bufferRows.length > 0) {
                 await processBatches(bufferRows)
+                await updateDashboardCache(bufferRows).catch((error) => {
+                    console.warn('No se pudo actualizar cache dashboard:', error.message)
+                })
             }
 
             await supabase
@@ -126,6 +133,9 @@ export const handler = async (event) => {
 
         if (bufferRows.length > 0) {
             await processBatches(bufferRows)
+            await updateDashboardCache(bufferRows).catch((error) => {
+                console.warn('No se pudo actualizar cache dashboard:', error.message)
+            })
         }
 
         await supabase

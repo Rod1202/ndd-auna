@@ -98,28 +98,63 @@ const percentDistribution = (items, valueKey = 'total_paginas', limit = 8) => {
         }))
 }
 
+const readDistributionCategory = (category, limit = 20) => {
+    return safeQuery(
+        supabase
+            .from('dashboard_distribution')
+            .select('*')
+            .eq('category', category)
+            .order('total_paginas', { ascending: false })
+            .limit(limit)
+    )
+}
+
 const loadDashboardCache = async () => {
     const [
         kpis,
         tendencia,
-        distributions
+        usuarios,
+        impresoras,
+        trabajos,
+        unidadNegocio,
+        sedes,
+        areas,
+        papel,
+        tipoTrabajo,
+        seriesNoEncontradas
     ] = await Promise.all([
         safeQuery(supabase.from('dashboard_kpis').select('*').eq('id', 1).maybeSingle(), null),
         safeQuery(supabase.from('dashboard_tendencia').select('*').order('dia', { ascending: true })),
-        safeQuery(supabase.from('dashboard_distribution').select('*'))
+        readDistributionCategory('usuario', 10),
+        readDistributionCategory('impresora', 10),
+        readDistributionCategory('trabajo', 10),
+        readDistributionCategory('unidad_negocio', 8),
+        readDistributionCategory('sede', 5),
+        readDistributionCategory('area', 5),
+        readDistributionCategory('papel', 8),
+        readDistributionCategory('tipo_trabajo', 6),
+        readDistributionCategory('serie_no_encontrada', 200)
     ])
 
-    if (!kpis.data || kpis.warning || tendencia.warning || distributions.warning) {
+    if (!kpis.data || kpis.warning) {
         return null
     }
 
-    const byCategory = (category) => distributions.data.filter((item) => item.category === category)
     const kpi = kpis.data
     const totalRegistros = sumNumber(kpi.total_registros)
     const sinInventario = sumNumber(kpi.sin_inventario)
 
     return {
-        usuarios: byCategory('usuario')
+        resumen: {
+            total_registros: kpi.total_registros,
+            total_paginas: kpi.total_paginas,
+            total_color: kpi.total_color,
+            total_mono: kpi.total_mono,
+            total_costo: kpi.total_costo,
+            total_usuarios: kpi.total_usuarios,
+            total_impresoras: kpi.total_impresoras
+        },
+        usuarios: usuarios.data
             .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
             .slice(0, 10)
             .map((item) => ({
@@ -127,19 +162,19 @@ const loadDashboardCache = async () => {
                 total_paginas: item.total_paginas,
                 total_costo: item.total_costo
             })),
-        impresoras: byCategory('impresora')
+        impresoras: impresoras.data
             .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
             .slice(0, 10)
             .map((item) => ({
                 impresora_serie: item.label,
                 total_paginas: item.total_paginas
             })),
-        tendencia: tendencia.data,
+        tendencia: tendencia.data || [],
         colorMono: [{
             total_color: kpi.total_color,
             total_mono: kpi.total_mono
         }],
-        trabajos: byCategory('trabajo')
+        trabajos: trabajos.data
             .sort((a, b) => sumNumber(b.total_paginas) - sumNumber(a.total_paginas))
             .slice(0, 10)
             .map((item) => ({
@@ -149,7 +184,7 @@ const loadDashboardCache = async () => {
                 impresoras: item.extra?.impresoras || 0,
                 usuarios: item.extra?.usuarios || 0
             })),
-        seriesNoEncontradas: byCategory('serie_no_encontrada')
+        seriesNoEncontradas: seriesNoEncontradas.data
             .map((item) => ({ impresora_serie: item.label })),
         calidadInventario: {
             total_registros: totalRegistros,
@@ -158,11 +193,11 @@ const loadDashboardCache = async () => {
                 ? Number(((sinInventario / totalRegistros) * 100).toFixed(2))
                 : 0
         },
-        unidadNegocioDistribucion: percentDistribution(byCategory('unidad_negocio')),
-        topSedes: percentDistribution(byCategory('sede'), 'total_paginas', 5),
-        topAreas: percentDistribution(byCategory('area'), 'total_paginas', 5),
-        papelDistribucion: percentDistribution(byCategory('papel')),
-        tipoTrabajoDistribucion: percentDistribution(byCategory('tipo_trabajo'), 'total_paginas', 6),
+        unidadNegocioDistribucion: percentDistribution(unidadNegocio.data),
+        topSedes: percentDistribution(sedes.data, 'total_paginas', 5),
+        topAreas: percentDistribution(areas.data, 'total_paginas', 5),
+        papelDistribucion: percentDistribution(papel.data),
+        tipoTrabajoDistribucion: percentDistribution(tipoTrabajo.data, 'total_paginas', 6),
         duplexSimplex: {
             duplex: kpi.duplex_count,
             simplex: kpi.simplex_count,
@@ -170,7 +205,18 @@ const loadDashboardCache = async () => {
             duplexPercent: totalRegistros ? Number(((sumNumber(kpi.duplex_count) / totalRegistros) * 100).toFixed(2)) : 0,
             simplexPercent: totalRegistros ? Number(((sumNumber(kpi.simplex_count) / totalRegistros) * 100).toFixed(2)) : 0
         },
-        warnings: []
+        warnings: [
+            tendencia.warning,
+            usuarios.warning,
+            impresoras.warning,
+            trabajos.warning,
+            unidadNegocio.warning,
+            sedes.warning,
+            areas.warning,
+            papel.warning,
+            tipoTrabajo.warning,
+            seriesNoEncontradas.warning
+        ].filter(Boolean)
     }
 }
 
@@ -300,6 +346,7 @@ export const handler = async () => {
         ].filter(Boolean)
 
         return json(200, {
+            resumen: null,
             usuarios: usuarios.data,
             impresoras: impresoras.data,
             tendencia: tendencia.data,

@@ -47,13 +47,13 @@
         />
         <KpiCard
           title="Usuarios activos"
-          :value="formatNumber(usuarios.length)"
+          :value="formatNumber(totalUsuarios)"
           icon="mdi-account-outline"
           tone="teal"
         />
         <KpiCard
           title="Impresoras"
-          :value="formatNumber(impresoras.length)"
+          :value="formatNumber(totalImpresoras)"
           icon="mdi-printer-outline"
           tone="amber"
         />
@@ -207,6 +207,7 @@ const {
   papelDistribucion,
   tipoTrabajoDistribucion,
   duplexSimplex,
+  resumen,
   warnings,
   loading,
   error
@@ -219,16 +220,21 @@ onMounted(() => {
 const formatNumber = (value) => Number(value || 0).toLocaleString('es-PE')
 
 const totalPaginas = computed(() => {
+  if (resumen.value) return Number(resumen.value.total_paginas || 0)
   return tendencia.value.reduce((sum, item) => sum + Number(item.total_paginas || 0), 0)
 })
 
 const totalCosto = computed(() => {
-  const total = tendencia.value.reduce((sum, item) => sum + Number(item.total_costo || 0), 0)
+  const total = resumen.value
+    ? Number(resumen.value.total_costo || 0)
+    : tendencia.value.reduce((sum, item) => sum + Number(item.total_costo || 0), 0)
   return `$ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 })
 
-const totalColor = computed(() => Number(colorMono.value?.total_color || 0))
-const totalMono = computed(() => Number(colorMono.value?.total_mono || 0))
+const totalColor = computed(() => Number(resumen.value?.total_color ?? colorMono.value?.total_color ?? 0))
+const totalMono = computed(() => Number(resumen.value?.total_mono ?? colorMono.value?.total_mono ?? 0))
+const totalUsuarios = computed(() => Number(resumen.value?.total_usuarios ?? usuarios.value.length))
+const totalImpresoras = computed(() => Number(resumen.value?.total_impresoras ?? impresoras.value.length))
 
 const porcentajeSinInventario = computed(() => {
   const value = Number(calidadInventario.value?.porcentaje_sin_inventario || 0)

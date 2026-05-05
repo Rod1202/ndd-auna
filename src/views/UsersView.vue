@@ -22,7 +22,7 @@
         <div class="card-header">
           <div>
             <h3 class="card-title">Filtros</h3>
-            <p class="card-subtitle">Busca por serie, sede, area o unidad de negocio.</p>
+            <p class="card-subtitle">Busca por usuario, serie, sede, area o unidad de negocio.</p>
           </div>
           <button class="soft-button" type="button" @click="clearFilters">
             <v-icon icon="mdi-filter-remove-outline" size="18" />
@@ -31,6 +31,16 @@
         </div>
 
         <div class="filters-grid">
+          <v-text-field
+            v-model="filters.usuario"
+            label="Usuario / logon"
+            clearable
+            density="compact"
+            variant="outlined"
+            prepend-inner-icon="mdi-account-search-outline"
+            hint="Busca por nombre de logon"
+            persistent-hint
+          />
           <v-text-field
             v-model="filters.serie"
             label="Impresora / serie"
@@ -140,6 +150,7 @@ const rows = ref([])
 const loading = ref(false)
 const error = ref('')
 const filters = reactive({
+  usuario: '',
   serie: '',
   sede: null,
   area: null,
@@ -162,9 +173,12 @@ const filterOptions = computed(() => ({
 }))
 
 const filteredRows = computed(() => rows.value.filter((row) => {
+  const userSearch = filters.usuario?.trim().toUpperCase()
   const serieSearch = filters.serie?.trim().toUpperCase()
+  const usuario = `${row.logon_nombre || ''} ${row.nombre_completo || ''}`.toUpperCase()
 
-  return (!serieSearch || String(row.impresora_serie || '').toUpperCase().includes(serieSearch))
+  return (!userSearch || usuario.includes(userSearch))
+    && (!serieSearch || String(row.impresora_serie || '').toUpperCase().includes(serieSearch))
     && (!filters.sede || row.sede === filters.sede)
     && (!filters.area || row.area === filters.area)
     && (!filters.unidadNegocio || row.unidad_negocio === filters.unidadNegocio)
@@ -214,10 +228,11 @@ const groupedUsers = computed(() => {
       areas: [...item.areas],
       unidades_negocio: [...item.unidades_negocio]
     }))
-    .sort((a, b) => b.paginas_total - a.paginas_total)
+    .sort((a, b) => b.costo_total - a.costo_total)
 })
 
 const clearFilters = () => {
+  filters.usuario = ''
   filters.serie = ''
   filters.sede = null
   filters.area = null
@@ -252,7 +267,7 @@ onMounted(loadData)
 <style scoped>
 .filters-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
 }
 

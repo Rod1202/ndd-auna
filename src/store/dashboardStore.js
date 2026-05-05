@@ -16,6 +16,7 @@ export const useDashboardStore = defineStore('dashboard', {
         papelDistribucion: [],
         tipoTrabajoDistribucion: [],
         duplexSimplex: null,
+        resumen: null,
         warnings: [],
         error: '',
         loading: false
@@ -43,6 +44,7 @@ export const useDashboardStore = defineStore('dashboard', {
                     papelDistribucion: data.papelDistribucion || [],
                     tipoTrabajoDistribucion: data.tipoTrabajoDistribucion || [],
                     duplexSimplex: data.duplexSimplex || null,
+                    resumen: data.resumen || null,
                     warnings: data.warnings || []
                 })
             } catch (error) {
