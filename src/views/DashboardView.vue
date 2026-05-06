@@ -3,7 +3,7 @@
     <div class="page-header">
       <div>
         <h1 class="page-title">Auna NDD</h1>
-        <p class="page-subtitle">Metricas de impresion, costos e inventario desde Supabase.</p>
+        <p class="page-subtitle">Proyecto Auditado por Gerencia de Operaciones de Mision Tecnologica.</p>
       </div>
       <div class="page-actions">
         <button class="primary-button" type="button" @click="store.loadDashboard()">

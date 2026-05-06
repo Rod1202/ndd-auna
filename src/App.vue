@@ -41,7 +41,7 @@
       <div class="sidebar__footer">
         <div class="system-status">
           <v-icon icon="mdi-cloud-check-outline" color="#10b981" />
-          Sistema activo
+          Power by : Rodrigo Carbonel
         </div>
       </div>
     </aside>
