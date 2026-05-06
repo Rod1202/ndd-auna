@@ -12,6 +12,26 @@ const toDateKey = (value) => {
     return String(value).slice(0, 10)
 }
 
+const mergeUnique = (left = [], right = []) => {
+    return [...new Set([...(Array.isArray(left) ? left : []), ...(Array.isArray(right) ? right : [])].filter(Boolean))]
+}
+
+const mergeExtra = (previous = {}, next = {}) => {
+    return {
+        ...previous,
+        ...next,
+        paginas_mono: sumNumber(previous.paginas_mono) + sumNumber(next.paginas_mono),
+        paginas_color: sumNumber(previous.paginas_color) + sumNumber(next.paginas_color),
+        costo_mono: sumNumber(previous.costo_mono) + sumNumber(next.costo_mono),
+        costo_color: sumNumber(previous.costo_color) + sumNumber(next.costo_color),
+        impresoras: mergeUnique(previous.impresoras, next.impresoras),
+        usuarios: mergeUnique(previous.usuarios, next.usuarios),
+        sedes: mergeUnique(previous.sedes, next.sedes),
+        areas: mergeUnique(previous.areas, next.areas),
+        unidades_negocio: mergeUnique(previous.unidades_negocio, next.unidades_negocio)
+    }
+}
+
 const addDistribution = (map, category, label, row, extra = {}) => {
     const key = `${category}::${label}`
     const current = map.get(key) || {
@@ -26,7 +46,13 @@ const addDistribution = (map, category, label, row, extra = {}) => {
     current.total_paginas += sumNumber(row.paginas_total)
     current.total_costo += sumNumber(row.costo_total)
     current.total_count += 1
-    current.extra = { ...current.extra, ...extra }
+    current.extra = mergeExtra(current.extra, {
+        paginas_mono: sumNumber(row.paginas_mono),
+        paginas_color: sumNumber(row.paginas_color),
+        costo_mono: sumNumber(row.costo_mono),
+        costo_color: sumNumber(row.costo_color),
+        ...extra
+    })
     map.set(key, current)
 }
 
@@ -62,10 +88,7 @@ const upsertDistributionCategory = async (category, items) => {
             total_paginas: sumNumber(previous?.total_paginas) + sumNumber(item.total_paginas),
             total_costo: sumNumber(previous?.total_costo) + sumNumber(item.total_costo),
             total_count: sumNumber(previous?.total_count) + sumNumber(item.total_count),
-            extra: {
-                ...(previous?.extra || {}),
-                ...(item.extra || {})
-            }
+            extra: mergeExtra(previous?.extra || {}, item.extra || {})
         }
     })
 
@@ -196,13 +219,9 @@ const updateDistinctKpis = async () => {
 export const updateDashboardCache = async (rows) => {
     if (!rows.length) return
 
-    const series = [...new Set(rows.map((row) => row.impresora_serie).filter(Boolean))]
-    const inventoryResult = series.length
-        ? await supabase
-            .from('inventario')
-            .select('serie, unidad_negocio, sede, area')
-            .in('serie', series)
-        : { data: [], error: null }
+    const inventoryResult = await supabase
+        .from('inventario')
+        .select('serie, unidad_negocio, sede, area')
 
     if (inventoryResult.error) throw inventoryResult.error
 
@@ -221,11 +240,25 @@ export const updateDashboardCache = async (rows) => {
             addDistribution(distributions, 'serie_no_encontrada', serie, { paginas_total: 0, costo_total: 0 })
         }
 
-        addDistribution(distributions, 'usuario', normalizeLabel(row.logon_nombre, 'Sin usuario'), row)
-        addDistribution(distributions, 'impresora', normalizeLabel(serie, 'Sin serie'), row)
+        addDistribution(distributions, 'usuario', normalizeLabel(row.logon_nombre, 'Sin usuario'), row, {
+            impresoras: serie ? [serie] : [],
+            sedes: inventory?.sede ? [inventory.sede] : [],
+            areas: inventory?.area ? [inventory.area] : [],
+            unidades_negocio: inventory?.unidad_negocio ? [inventory.unidad_negocio] : []
+        })
+        addDistribution(distributions, 'impresora', normalizeLabel(serie, 'Sin serie'), row, {
+            unidad_negocio: inventory?.unidad_negocio || null,
+            sede: inventory?.sede || null,
+            area: inventory?.area || null,
+            usuarios: row.logon_nombre ? [row.logon_nombre] : []
+        })
         addDistribution(distributions, 'trabajo', normalizeLabel(row.nombre_trabajo, 'Sin titulo'), row)
         addDistribution(distributions, 'unidad_negocio', normalizeLabel(inventory?.unidad_negocio, 'Sin inventario'), row)
-        addDistribution(distributions, 'sede', normalizeLabel(inventory?.sede, 'Sin inventario'), row)
+        addDistribution(distributions, 'sede', normalizeLabel(inventory?.sede, 'Sin inventario'), row, {
+            unidad_negocio: inventory?.unidad_negocio || null,
+            impresoras: serie ? [serie] : [],
+            usuarios: row.logon_nombre ? [row.logon_nombre] : []
+        })
         addDistribution(distributions, 'area', normalizeLabel(inventory?.area, 'Sin inventario'), row)
         addDistribution(distributions, 'papel', normalizeLabel(row.papel), row)
         addDistribution(distributions, 'tipo_trabajo', normalizeLabel(row.tipo_trabajo), row)

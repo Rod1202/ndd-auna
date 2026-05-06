@@ -151,7 +151,7 @@ onMounted(loadData)
 <style scoped>
 .sedes-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 24px;
 }
 
@@ -256,12 +256,6 @@ onMounted(loadData)
   background: #f8fafc;
   font-size: 11px;
   font-weight: 800;
-}
-
-@media (max-width: 1180px) {
-  .sedes-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 760px) {

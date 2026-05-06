@@ -110,7 +110,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getEnrichedPrints } from '../services/api'
+import { getUserJobs } from '../services/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,7 +152,7 @@ const loadData = async () => {
   error.value = ''
 
   try {
-    const data = await getEnrichedPrints()
+    const data = await getUserJobs(decodedUsuario.value)
     rows.value = data.rows || []
   } catch (err) {
     console.error(err)

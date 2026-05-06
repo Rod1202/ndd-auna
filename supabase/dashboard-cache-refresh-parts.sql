@@ -35,7 +35,7 @@ select
   now()
 from public.print_logs l
 left join public.inventario i
-  on l.impresora_serie = i.serie;
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie));
 
 -- Tendencia
 insert into public.dashboard_tendencia (dia, total_paginas, total_costo)
@@ -48,21 +48,46 @@ where l.fecha_impresion is not null
 group by date(l.fecha_impresion);
 
 -- Usuarios
-insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count)
+insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count, extra)
 select 'usuario', coalesce(nullif(l.logon_nombre, ''), 'Sin usuario'),
   coalesce(sum(l.paginas_total), 0)::bigint,
   coalesce(sum(l.costo_total), 0),
-  count(*)::bigint
+  count(*)::bigint,
+  jsonb_build_object(
+    'paginas_mono', coalesce(sum(l.paginas_mono), 0),
+    'paginas_color', coalesce(sum(l.paginas_color), 0),
+    'costo_mono', coalesce(sum(l.costo_mono), 0),
+    'costo_color', coalesce(sum(l.costo_color), 0),
+    'cantidad_impresoras', count(distinct nullif(l.impresora_serie, '')),
+    'impresoras', coalesce(jsonb_agg(distinct l.impresora_serie) filter (where l.impresora_serie is not null), '[]'::jsonb),
+    'sedes', coalesce(jsonb_agg(distinct i.sede) filter (where i.sede is not null), '[]'::jsonb),
+    'areas', coalesce(jsonb_agg(distinct i.area) filter (where i.area is not null), '[]'::jsonb),
+    'unidades_negocio', coalesce(jsonb_agg(distinct i.unidad_negocio) filter (where i.unidad_negocio is not null), '[]'::jsonb)
+  )
 from public.print_logs l
+left join public.inventario i
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 group by coalesce(nullif(l.logon_nombre, ''), 'Sin usuario');
 
 -- Impresoras
-insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count)
+insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count, extra)
 select 'impresora', coalesce(nullif(l.impresora_serie, ''), 'Sin serie'),
   coalesce(sum(l.paginas_total), 0)::bigint,
   coalesce(sum(l.costo_total), 0),
-  count(*)::bigint
+  count(*)::bigint,
+  jsonb_build_object(
+    'unidad_negocio', max(i.unidad_negocio),
+    'sede', max(i.sede),
+    'area', max(i.area),
+    'paginas_mono', coalesce(sum(l.paginas_mono), 0),
+    'paginas_color', coalesce(sum(l.paginas_color), 0),
+    'costo_mono', coalesce(sum(l.costo_mono), 0),
+    'costo_color', coalesce(sum(l.costo_color), 0),
+    'usuarios', count(distinct nullif(l.logon_nombre, ''))
+  )
 from public.print_logs l
+left join public.inventario i
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 group by coalesce(nullif(l.impresora_serie, ''), 'Sin serie');
 
 -- Trabajos
@@ -86,18 +111,27 @@ select 'unidad_negocio', coalesce(nullif(i.unidad_negocio, ''), 'Sin inventario'
   count(*)::bigint
 from public.print_logs l
 left join public.inventario i
-  on l.impresora_serie = i.serie
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 group by coalesce(nullif(i.unidad_negocio, ''), 'Sin inventario');
 
 -- Sedes
-insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count)
+insert into public.dashboard_distribution (category, label, total_paginas, total_costo, total_count, extra)
 select 'sede', coalesce(nullif(i.sede, ''), 'Sin inventario'),
   coalesce(sum(l.paginas_total), 0)::bigint,
   coalesce(sum(l.costo_total), 0),
-  count(*)::bigint
+  count(*)::bigint,
+  jsonb_build_object(
+    'unidad_negocio', max(i.unidad_negocio),
+    'paginas_mono', coalesce(sum(l.paginas_mono), 0),
+    'paginas_color', coalesce(sum(l.paginas_color), 0),
+    'costo_mono', coalesce(sum(l.costo_mono), 0),
+    'costo_color', coalesce(sum(l.costo_color), 0),
+    'impresoras', count(distinct nullif(l.impresora_serie, '')),
+    'usuarios', count(distinct nullif(l.logon_nombre, ''))
+  )
 from public.print_logs l
 left join public.inventario i
-  on l.impresora_serie = i.serie
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 group by coalesce(nullif(i.sede, ''), 'Sin inventario');
 
 -- Areas
@@ -108,7 +142,7 @@ select 'area', coalesce(nullif(i.area, ''), 'Sin inventario'),
   count(*)::bigint
 from public.print_logs l
 left join public.inventario i
-  on l.impresora_serie = i.serie
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 group by coalesce(nullif(i.area, ''), 'Sin inventario');
 
 -- Papel
@@ -134,7 +168,7 @@ insert into public.dashboard_distribution (category, label, total_count)
 select 'serie_no_encontrada', l.impresora_serie, count(*)::bigint
 from public.print_logs l
 left join public.inventario i
-  on l.impresora_serie = i.serie
+  on upper(trim(l.impresora_serie)) = upper(trim(i.serie))
 where i.serie is null
   and l.impresora_serie is not null
 group by l.impresora_serie;

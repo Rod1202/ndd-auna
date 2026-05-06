@@ -32,3 +32,19 @@ export const getEnrichedPrints = async () => {
 
     return res.json()
 }
+
+export const getUserJobs = async (usuario) => {
+    const res = await fetch(`/.netlify/functions/get-user-jobs?usuario=${encodeURIComponent(usuario)}`)
+    const contentType = res.headers.get('content-type') || ''
+
+    if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || 'No se pudo cargar trabajos del usuario')
+    }
+
+    if (!contentType.includes('application/json')) {
+        throw new Error('Las funciones Netlify no estan activas. Ejecuta npm run dev y abre la URL de Netlify Dev.')
+    }
+
+    return res.json()
+}

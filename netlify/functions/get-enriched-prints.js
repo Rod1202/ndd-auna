@@ -12,9 +12,148 @@ const assertQuery = (result) => {
 }
 
 const sumNumber = (value) => Number(value || 0)
+const normalizeSerie = (value) => String(value || '').trim().toUpperCase()
+const countValue = (value) => Array.isArray(value) ? value.length : sumNumber(value)
+
+const readCategory = async (category) => {
+    const pageSize = 1000
+    let from = 0
+    let rows = []
+
+    while (true) {
+        const { data, error } = await supabase
+            .from('dashboard_distribution')
+            .select('*')
+            .eq('category', category)
+            .order('total_costo', { ascending: false })
+            .range(from, from + pageSize - 1)
+
+        if (error) throw error
+
+        rows = rows.concat(data || [])
+
+        if (!data || data.length < pageSize) break
+
+        from += pageSize
+    }
+
+    return rows
+}
+
+const readCachedSummary = async () => {
+    const { data: kpi } = await supabase
+        .from('dashboard_kpis')
+        .select('id')
+        .eq('id', 1)
+        .maybeSingle()
+
+    if (!kpi) return null
+
+    const [usuariosRows, impresorasRows, sedesRows] = await Promise.all([
+        readCategory('usuario'),
+        readCategory('impresora'),
+        readCategory('sede')
+    ])
+    const { data: inventarioData, error: inventarioError } = await supabase
+        .from('inventario')
+        .select('serie, unidad_negocio, sede, area')
+
+    if (inventarioError) throw inventarioError
+
+    const inventoryBySerie = new Map(
+        (inventarioData || []).map((item) => [normalizeSerie(item.serie), item])
+    )
+    const inventoryBySede = new Map()
+
+    for (const item of inventarioData || []) {
+        const sedeKey = String(item.sede || '').trim()
+        if (sedeKey && !inventoryBySede.has(sedeKey)) {
+            inventoryBySede.set(sedeKey, item)
+        }
+    }
+
+    const usuarios = usuariosRows.map((item) => {
+        const impresoras = item.extra?.impresoras || []
+        const inventoryMatches = impresoras
+            .map((serie) => inventoryBySerie.get(normalizeSerie(serie)))
+            .filter(Boolean)
+
+        return {
+            usuario: item.label,
+            nombre_completo: null,
+            impresiones: item.total_count,
+            paginas_mono: sumNumber(item.extra?.paginas_mono),
+            paginas_color: sumNumber(item.extra?.paginas_color),
+            paginas_total: item.total_paginas,
+            costo_mono: sumNumber(item.extra?.costo_mono),
+            costo_color: sumNumber(item.extra?.costo_color),
+            costo_total: item.total_costo,
+            impresoras,
+            cantidad_interaccion_impresoras: item.extra?.cantidad_impresoras || impresoras.length || 0,
+            sedes: item.extra?.sedes?.length
+                ? item.extra.sedes
+                : [...new Set(inventoryMatches.map((inv) => inv.sede).filter(Boolean))],
+            areas: item.extra?.areas?.length
+                ? item.extra.areas
+                : [...new Set(inventoryMatches.map((inv) => inv.area).filter(Boolean))],
+            unidades_negocio: item.extra?.unidades_negocio?.length
+                ? item.extra.unidades_negocio
+                : [...new Set(inventoryMatches.map((inv) => inv.unidad_negocio).filter(Boolean))]
+        }
+    })
+
+    const impresoras = impresorasRows.map((item) => {
+        const inventory = inventoryBySerie.get(normalizeSerie(item.label)) || {}
+
+        return {
+            impresora_serie: item.label,
+            unidad_negocio: item.extra?.unidad_negocio || inventory.unidad_negocio || '-',
+            sede: item.extra?.sede || inventory.sede || 'Sin inventario',
+            area: item.extra?.area || inventory.area || '-',
+            paginas_mono: sumNumber(item.extra?.paginas_mono),
+            paginas_color: sumNumber(item.extra?.paginas_color),
+            paginas_total: item.total_paginas,
+            costo_mono: sumNumber(item.extra?.costo_mono),
+            costo_color: sumNumber(item.extra?.costo_color),
+            costo_total: item.total_costo,
+            usuarios: countValue(item.extra?.usuarios)
+        }
+    })
+
+    const sedes = sedesRows.map((item) => {
+        const inventory = inventoryBySede.get(String(item.label || '').trim()) || {}
+
+        return {
+            sede: item.label,
+            unidad_negocio: item.extra?.unidad_negocio || inventory.unidad_negocio || '-',
+            registros: item.total_count,
+            paginas_mono: sumNumber(item.extra?.paginas_mono),
+            paginas_color: sumNumber(item.extra?.paginas_color),
+            paginas_total: item.total_paginas,
+            costo_mono: sumNumber(item.extra?.costo_mono),
+            costo_color: sumNumber(item.extra?.costo_color),
+            costo_total: item.total_costo,
+            impresoras: countValue(item.extra?.impresoras),
+            usuarios: countValue(item.extra?.usuarios)
+        }
+    })
+
+    return {
+        rows: [],
+        sedes,
+        impresoras,
+        usuarios
+    }
+}
 
 export const handler = async (event) => {
     try {
+        const cachedSummary = await readCachedSummary()
+
+        if (cachedSummary) {
+            return json(200, cachedSummary)
+        }
+
         const limit = Math.min(Number(event.queryStringParameters?.limit || 500), 2000)
 
         const logsResult = await supabase
@@ -177,7 +316,7 @@ export const handler = async (event) => {
                 areas: [...item.areas],
                 unidades_negocio: [...item.unidades_negocio]
             }))
-            .sort((a, b) => b.paginas_total - a.paginas_total)
+            .sort((a, b) => b.costo_total - a.costo_total)
 
         return json(200, { rows, sedes, impresoras, usuarios })
     } catch (error) {
